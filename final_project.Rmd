@@ -1,0 +1,492 @@
+---
+95778title: Final Project
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+*Team Member:*
+Ziling Xu,(andrew id: zilingx)
+Lin Lyu Lyu,(andrew id: linly)
+
+
+# Part0 Introduction
+We would use two datasets. The first one is called IMDB dataset and the second one is called Netflix dataset. The IMDB Movies Dataset contains information about 14,762 movies. Information about these movies was downloaded with wget for the purpose of creating a movie recommendation app. As for Netflix dataset, it consists of tv shows and movies available on Netflix as of 2019. The dataset is collected from Flixable which is a third-party Netflix search engine. In 2018, they released an interesting report which shows that the number of TV shows on Netflix has nearly tripled since 2010. The streaming service number of movies has decreased by more than 2000 titles since 2010, while its number of TV shows has nearly tripled. It will be interesting to explore what all other insights can be obtained from the same dataset. Integrating this dataset with other external datasets such as IMDB ratings, rotten tomatoes can also provide many interesting findings.
+
+In this project, at first we would import these two datasets and then we would do someything about 'data cleaning'. We split IMDB dataset and Netflix dataset into two datasets repectively according to the column called 'type' whcih contain two categories, movie and tv.
+
+Our second part is about Data Visualization. We compare the distribution of released movies and tvs for each of the datasets by creating  and we compare the distribution of each of the genres by using both quantile plots and Q-Q plots. To be more detailed, we figure out the distribution of the genres in the IMDB dataset, the rating distribution of each of the genres and the rating count distributionin the IMDB dataset.
+
+The third part is about data Model. We perform a `t.test` to check if the ratings of movies in 1980 and in 2000 could have come from the same distribution. And we also do a `t.test` to check if the ratings of Drama movies and Comedies could have come from the same distribution. For the second section of this part, we do regression and cross validation to fit a natural spline to number of reviews (popularity measure) as a function of rating. We also use ten-fold cross validation (so `K=10`) to fit a natural spline to nrOfUserReviews.
+
+
+**Import Library**
+```{r}
+set.seed(1)
+library(tidyverse)
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(boot) 
+library(splines)
+```
+
+
+**Import Datasets**
+```{r}
+imdb = read.csv(file = 'imdb.csv', header = TRUE)
+netflix = read.csv(file = 'netflix.csv', header = TRUE)
+```
+
+
+# Part1 Data Preparation
+
+### 1.1 Data Overview
+
+##### 1.1.1. The IMDB dataset (https://www.kaggle.com/orgesleka/imdbmovies)
+```{r}
+summary(imdb)
+```
+
+##### 1.1.2. The Netflix dataset (https://www.kaggle.com/shivamb/netflix-shows)
+
+```{r}
+summary(netflix)
+```
+
+
+1.In the IMDB dataset, 
+
+### 1.2 Data Preprocess
+
+##### 1.2.1.data cleaning
+```{r}
+imdb <- filter(imdb,
+       type =="video.movie")
+imdb <- transform(imdb, 
+                  type = mapvalues(type, c("video.movie"), c("movie")))
+imdb <- transform(imdb, 
+                  imdbRating = as.numeric(imdbRating)/10.0,
+                  ratingCount = as.integer(ratingCount),
+                  duration = as.integer(duration),
+                  nrOfWins = as.integer(nrOfWins),
+                  nrOfNominations = as.integer(nrOfNominations),
+                  nrOfPhotos = as.integer(nrOfPhotos),
+                  nrOfNewsArticles = as.integer(nrOfNewsArticles),
+                  nrOfUserReviews = as.integer(nrOfUserReviews),
+                  nrOfGenre = as.integer(nrOfGenre))
+imdb <-filter(imdb,imdbRating!="")
+netflix <- filter(netflix,
+       type =="Movie")
+netflix <- transform(netflix, 
+                     type = mapvalues(type, c("Movie"), c("movie")))
+```
+
+
+# Part2 Data Visualization
+### 2.1 Visualising distributions
+##### Compare the distribution of released movies and tvs for each of the datasets
+```{r fig.width=12, fig.height=6, dpi=100, fig.align='center'}
+ggplot(data = imdb) + 
+  geom_bar(mapping = aes(x = year))+ 
+  labs(title = 'Yearly released movie(imdb)')
+
+ggplot(data = netflix) + 
+  geom_bar(mapping = aes(x = release_year))+ 
+  labs(title = 'Yearly released movie(movie)')
+```
+
+##### Compare the distribution of each of the genres 
+**IMDB Dataset**
+```{r}
+colnames(imdb)
+```
+
+There are several genres int the IMDB Dataset: Action,Adventure,Animation,Biography,Comedy,Crime,Documentary,Drama,Family,Fantasy,FilmNoir,History,Horror,Music,Musical,Mystery,Romance,SciFi,Short,Sport,Thriller,War,Western. And it is possible that a movie belongs to more than one genre,so we need to include it in both distributions.
+
+```{R}
+Action.imdb = imdb %>% filter(imdb[,"Action"]==1)%>% mutate(genre="Action")
+Adult.imdb = imdb %>% filter(imdb[,"Adult"]==1)%>% mutate(genre="Adult")
+Adventure.imdb = imdb %>% filter(imdb[,"Adventure"]==1)%>% mutate(genre="Adventure")
+Animation.imdb = imdb %>% filter(imdb[,"Animation"]==1)%>% mutate(genre="Animation")
+Biography.imdb = imdb %>% filter(imdb[,"Biography"]==1)%>% mutate(genre="Biography")
+Comedy.imdb = imdb %>% filter(imdb[,"Comedy"]==1)%>% mutate(genre="Comedy")
+Crime.imdb = imdb %>% filter(imdb[,"Crime"]==1)%>% mutate(genre="Crime")
+Documentary.imdb = imdb %>% filter(imdb[,"Documentary"]==1)%>% mutate(genre="Documentary")
+Drama.imdb = imdb %>% filter(imdb[,"Drama"]==1)%>% mutate(genre="Drama")
+Family.imdb = imdb %>% filter(imdb[,"Family"]==1)%>% mutate(genre="Family")
+Fantasy.imdb = imdb %>% filter(imdb[,"Fantasy"]==1)%>% mutate(genre="Fantasy")
+FilmNoir.imdb = imdb %>% filter(imdb[,"FilmNoir"]==1)%>% mutate(genre="FilmNoir")
+GameShow.imdb = imdb %>% filter(imdb[,"GameShow"]==1)%>% mutate(genre="GameShow")
+History.imdb= imdb %>% filter(imdb[,"History"]==1)%>% mutate(genre="History")
+Horror.imdb = imdb %>% filter(imdb[,"Horror"]==1)%>% mutate(genre="Horror")
+Music.imdb = imdb %>% filter(imdb[,"Music"]==1)%>% mutate(genre="Music")
+Musical.imdb = imdb %>% filter(imdb[,"Musical"]==1)%>% mutate(genre="Musical")
+Mystery.imdb = imdb %>% filter(imdb[,"Mystery"]==1)%>% mutate(genre="Mystery")
+News.imdb = imdb %>% filter(imdb[,"News"]==1)%>% mutate(genre="News")
+RealityTV.imdb =imdb %>% filter(imdb[,"RealityTV"]==1)%>% mutate(genre="RealityTV")
+Romance.imdb = imdb %>% filter(imdb[,"Romance"]==1)%>% mutate(genre="Romance")
+SciFi.imdb = imdb %>% filter(imdb[,"SciFi"]==1)%>% mutate(genre="SciFi")
+Short.imdb = imdb %>% filter(imdb[,"Short"]==1)%>% mutate(genre="Short")
+Sport.imdb = imdb %>% filter(imdb[,"Sport"]==1)%>% mutate(genre="Sport") 
+TalkShow.imdb = imdb %>% filter(imdb[,"TalkShow"]==1)%>% mutate(genre="TalkShow") 
+Thriller.imdb = imdb %>% filter(imdb[,"Thriller"]==1)%>% mutate(genre="Thriller") 
+War.imdb = imdb %>% filter(imdb[,"War"]==1)%>% mutate(genre="War")
+Western.imdb = imdb %>% filter(imdb[,"Western"]==1)%>% mutate(genre="Western")
+imdb.genres <- rbind(Action.imdb,Adult.imdb,Adventure.imdb,Animation.imdb,
+                     Biography.imdb,Comedy.imdb,Crime.imdb,Documentary.imdb,
+                     Drama.imdb,Family.imdb,Fantasy.imdb,FilmNoir.imdb,
+                     GameShow.imdb,History.imdb,Horror.imdb,Music.imdb,
+                     Musical.imdb,Mystery.imdb,News.imdb,RealityTV.imdb,
+                     Romance.imdb,SciFi.imdb,Short.imdb,Sport.imdb,
+                     TalkShow.imdb,Thriller.imdb,War.imdb,Western.imdb)
+imdb.genres <- select(imdb.genres,genre,imdbRating,ratingCount,duration,year,nrOfWins,nrOfNominations,nrOfPhotos,
+nrOfNewsArticles,nrOfUserReviews)
+```
+
+*Distribution of the genres in the IMDB dataset*
+```{r fig.width=10, fig.height=4, dpi=100, fig.align='center'}
+ggplot(data = imdb.genres) + 
+  geom_bar(mapping = aes(x = genre))
+```
+```{r fig.width=10, fig.height=6, dpi=100, fig.align='center'}
+ddply(imdb.genres, "genre", summarize, n.count = length(genre))
+```
+From the plot above, in the IMDB datatset, we can see 'Drama' genre appears the most times, 'Gameshow', 'News' and 'Reality TV' has the lowest count.
+Noticing that movies that belong to "Adult","GameShow","News","RealityTV", and "TalkShow" genre is extremely small, and it is hard to get any meaninful result from such small amount of data points. We can simply exclude them from the analysis below.
+
+```{r fig.width=15, fig.height=6, dpi=100, fig.align='center'}
+imdb.genres <- filter(imdb.genres,genre!="Adult",genre!="News",genre!="GameShow",genre!="TalkShow",genre!="RealityTV")
+imdb<-imdb %>%
+  filter(Adult!=1|(Adult==1&nrOfGenre>1)) %>%
+  filter(News!=1|(News==1&nrOfGenre>1)) %>%
+  filter(GameShow!=1|(GameShow==1&nrOfGenre>1)) %>%
+  filter(TalkShow!=1|(TalkShow==1&nrOfGenre>1)) %>%
+  filter(RealityTV!=1|(RealityTV==1&nrOfGenre>1))
+```
+
+
+```{r fig.width=10, fig.height=6, dpi=100, fig.align='center'}
+imdb.statistics<-ddply(imdb.genres, "genre", summarize, 
+      n.count = length(genre),
+      avg.rating = mean(imdbRating),
+      avg.ratingCount = mean(ratingCount),
+      avg.reviews = mean(nrOfUserReviews),
+      avg.nominations = mean(nrOfNominations))
+```
+
+*Rating distribution of each of the genres in the IMDB dataset*
+```{r fig.width=10, fig.height=3, dpi=100, fig.align='center'}
+ggplot(data = imdb.statistics, mapping=aes(x = reorder(genre, desc(avg.rating)), y = avg.rating)) +
+  geom_bar(stat='identity')+
+  labs(title='Average Rating for each of the genres', 
+       x = 'Genre', y = 'Average ratings')
+```
+
+From the plot above, we can see movies under 'FilmNoir' genre have the highest average rating, movies under 'Short' genre have the highest average rating.
+
+```{r fig.width=15, fig.height=6, dpi=100, fig.align='center'}
+boxplot(imdbRating~genre,data = imdb.genres)
+```
+
+From the plot above, we can see that almost each genre has nearly the same maximum value and almost the same minimum value and their medium is almost the same
+
+*Rating count distribution of each of the genres in the IMDB dataset*
+```{r fig.width=10, fig.height=3, dpi=100, fig.align='center'}
+ggplot(data = imdb.statistics, mapping=aes(x = reorder(genre, desc(avg.ratingCount)), y = avg.ratingCount)) +
+  geom_bar(stat='identity')+
+  labs(title='Average Rating Count for each of the genres', 
+       x = 'Genre', y = 'Average rating counts')
+```
+From the plot above, we can see movies under 'Animation' genre have the highest average rating count, movies under 'Short' genre have the highest average rating count.
+
+```{r fig.width=15, fig.height=6, dpi=100, fig.align='center'}
+boxplot(ratingCount~genre,data = imdb.genres)
+```
+From the plot above, we can see that almost each genre has nearly the same maximum value and almost the same minimum value and their medium is almost the same
+
+*Review count distribution of each of the genres in the IMDB dataset*
+```{r fig.width=10, fig.height=3, dpi=100, fig.align='center'}
+ggplot(data = imdb.statistics, mapping=aes(x = reorder(genre, desc(avg.reviews)), y = avg.reviews)) +
+  geom_bar(stat='identity')+
+  labs(title='Average Review Count for each of the genres', 
+       x = 'Genre', y = 'Average review counts')
+```
+From the plot above, we can see movies under 'SciFi' genre have the highest average review count, movies under 'Short' genre have the highest average review count.
+
+*Nomination number distribution of each of the genres in the IMDB dataset*
+```{r fig.width=10, fig.height=3, dpi=100, fig.align='center'}
+ggplot(data = imdb.statistics, mapping=aes(x = reorder(genre, desc(avg.nominations)), y = avg.nominations)) +
+  geom_bar(stat='identity')+
+  labs(title='Nomination number Count for each of the genres', 
+       x = 'Genre', y = 'Average nomination number')
+```
+From the plot above, we can see movies under 'Biology' genre have the highest average nomination number, movies under 'Short' genre have the highest average nomination number.
+
+
+**Netflix Dataset**
+
+```{r}
+genres <- vector()
+for (i in unique(netflix$listed_in)){
+  if (length(str_split(i,",")[[1]])<2){
+    genres <- c(genres , i)
+  } else {
+    for (j in str_split(i,",")[[1]]){
+    genres  <- c(genres, str_trim(j))
+    }
+  }
+}
+genres <- unique(genres)
+genres
+```
+There are several genres int the Netflix Dataset: Family,Comedy,International,SciFi,Thriller,Action,Drama,Cult,Independent,Romance,Documentary,Horror,Music,Anime,Faith,LGBTQ,Classic,Sport. And it is possible that a movie belongs to more than one genre, so we need to include it in both distributions.
+```{r}
+Family.netflix<- netflix %>% 
+  filter(str_detect(listed_in,"Children & Family Movies"))%>% 
+  mutate(genre="Family")
+Comedy.netflix<- netflix %>% 
+  filter(str_detect(listed_in,"Comedies")|str_detect(listed_in,"Stand-Up Comedy"))%>% 
+  mutate(genre="Comedy")
+International.netflix<-netflix %>% 
+  filter(str_detect(listed_in,"International Movies"))%>% 
+  mutate(genre="International")
+SciFi.netflix<-netflix %>% 
+  filter(str_detect(listed_in,"Sci-Fi & Fantasy"))%>%
+  mutate(genre="SciFi")
+Thriller.netflix<-netflix %>% 
+  filter(str_detect(listed_in,"Thrillers"))%>%
+  mutate(genre="Thriller")
+Action.netflix <-netflix %>% 
+  filter(str_detect(listed_in,"Action & Adventure" ))%>%
+  mutate(genre="Action")
+Drama.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Dramas"))%>%
+  mutate(genre="Drama")
+Cult.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Cult Movies"))%>%
+  mutate(genre="Cult")
+Independent.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Independent Movies"))%>%
+  mutate(genre="Independent")
+Romance.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Romantic Movies"))%>%
+  mutate(genre="Romance")
+Documentary.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Documentaries"))%>%
+  mutate(genre="Documentary")
+Horror.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Horror Movies"))%>%
+  mutate(genre="Horror")
+Music.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Music & Musicals"))%>%
+  mutate(genre="Music")
+Anime.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Anime Features"))%>%
+  mutate(genre="Anime")
+Faith.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Faith & Spirituality"))%>%
+  mutate(genre="Faith")
+LGBTQ.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "LGBTQ Movies"))%>%
+  mutate(genre="LGBTQ")
+Classic.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Classic Movies"))%>%
+  mutate(genre="Classic")
+Sport.netflix <-netflix %>% 
+  filter(str_detect(listed_in, "Sports Movies"))%>%
+  mutate(genre="Sport")
+
+netflix.genres <- rbind(Family.netflix,Comedy.netflix,International.netflix,SciFi.netflix,
+                     Thriller.netflix,Action.netflix,Drama.netflix,Cult.netflix,
+                     Independent.netflix,Romance.netflix,Documentary.netflix,
+                     Horror.netflix,Music.netflix,Anime.netflix,Faith.netflix,
+                     LGBTQ.netflix,Classic.netflix,Sport.netflix)
+```
+
+
+```{r fig.width=10, fig.height=4, dpi=100, fig.align='center'}
+ggplot(data = netflix.genres) + 
+  geom_bar(mapping = aes(x = genre))
+```
+
+```{r fig.width=10, fig.height=6, dpi=100, fig.align='center'}
+ddply(netflix.genres, "genre", summarize, n.count = length(genre))
+```
+From the plot above,in the Netflix dataset, despite 'International' genre, 'Drama' genre appears the most times, 'Anime', 'Cult' and 'Faith' has the lowest count.
+
+#### Compare the distribution of ratings for each of the genres
+Use both quantile plots and Q-Q plots to compare the distribution of ratings for each of the genres. 
+For the quantile plot, we want to use facets to divide the data into groups, and show a common reference line (specifically, the distribution of the pooled data) in each facet to make visual comparisons easy. 
+For the QQ plot we will similarly compare the quantiles of each group against the quantiles of the pooled data.
+
+```{r fig.width=8, fig.height=10, dpi=100, fig.align='center'}
+ggplot(data = imdb.genres, mapping = aes(sample = imdbRating)) + 
+  stat_qq(distribution='qunif') + 
+  facet_wrap('genre', nrow = 6)  + 
+  stat_qq(data = imdb,mapping = aes(sample = imdbRating), distribution =  qunif, geom='line') 
+```
+
+```{r}
+Find.QQ = function(genre.data,pooled.data,type) {
+  probs = seq(from = 0, to = 1, length.out = nrow(genre.data))
+  q1 = quantile(genre.data$imdbRating, probs= probs)
+  q2 = quantile(pooled.data$imdbRating, probs=probs )
+  return( data.frame(genre = type, group.data = q1, pooled.data = q2, quantile = probs))
+}
+
+imdb_qq.genres = rbind(Find.QQ(Action.imdb,imdb,"Action"),
+                       Find.QQ(Adventure.imdb,imdb,"Adventure"),
+                       Find.QQ(Animation.imdb,imdb,"Animation"),
+                       Find.QQ(Biography.imdb,imdb,"Biography"),
+                       Find.QQ(Comedy.imdb,imdb,"Comedy"),
+                       Find.QQ(Crime.imdb,imdb,"Crime"),
+                       Find.QQ(Documentary.imdb,imdb,"Documentary"),
+                       Find.QQ(Drama.imdb,imdb,"Drama"),
+                       Find.QQ(Family.imdb,imdb,"Family"),
+                       Find.QQ(Fantasy.imdb,imdb,"Fantasy"),
+                       Find.QQ(FilmNoir.imdb,imdb,"FilmNoir"),
+                       Find.QQ(History.imdb,imdb,"History"),
+                       Find.QQ(Horror.imdb,imdb,"Horror"),
+                       Find.QQ(Music.imdb,imdb,"Music"),
+                       Find.QQ(Musical.imdb,imdb,"Musical"),
+                       Find.QQ(Mystery.imdb,imdb,"Mystery"),
+                       Find.QQ(Romance.imdb,imdb,"Romance"),
+                       Find.QQ(SciFi.imdb,imdb,"SciFi"),
+                       Find.QQ(Short.imdb,imdb,"Short"),
+                       Find.QQ(Sport.imdb,imdb,"Sport"),
+                       Find.QQ(Thriller.imdb,imdb,"Thriller"),
+                       Find.QQ(War.imdb,imdb,"War"),
+                       Find.QQ(Western.imdb,imdb,"Western"))
+```
+
+
+```{r fig.width=8, fig.height=10, dpi=100, fig.align='center'}
+ggplot(data = imdb_qq.genres, mapping=aes(x=pooled.data, y=group.data)) + 
+  geom_point() + 
+  facet_wrap('genre', nrow=6) + 
+  labs(title='QQ plots, groups vs pooled data', 
+       x = 'all ratings', y = 'grouped ratings') + 
+  geom_abline(slope=1) 
+```
+*The distribution of ratings for action movies have better ratings than the overall distribution at the lower quantiles, and also better than the overall distribution at the highest quantiles*
+*The distribution of ratings for adventure movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for animation first have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for biology movies generally have better ratings than the overall distribution*
+*The distribution of ratings for comedy movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for crime movies have better ratings than the overall distribution at the lower quantiles, and also better than the overall distribution at the highest quantiles*
+*The distribution of ratings for documentary movies have worse ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for drama movies generally have better ratings than the overall distribution*
+*The distribution of ratings for family movies have better ratings than the overall distribution at the lower quantiles, and worse ratings than the overall distribution at the middle quantiles*
+*The distribution of ratings for fantasy movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for history movies have better ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for horror movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for music movies generally have better ratings than the overall distribution*
+*The distribution of ratings for musical movies generally have better ratings than the overall distribution*
+*The distribution of ratings for mystery movies generally have better ratings than the overall distribution*
+*The distribution of ratings for romance movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for scifi movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for short movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for sport movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for thriller movies have better ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for war movies generally have better ratings than the overall distribution*
+*The distribution of ratings for western movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+
+# Part3 Data Model
+### 3.1 T test
+**Do a `t.test` to check if the ratings of movies in 1980 and in 2000 could have come from the same distribution.**
+```{r fig.width=6, fig.height=3, dpi=100, fig.align='center'}
+with(imdb, 
+     t.test(x = imdbRating[ year == 1980], y = imdbRating[ year == 2000]))
+```
+
+*Mean rating of movies in year 1980 is 6.527381 and mean rating of movies in year 2000 is 6.101859.*
+*The conclusion of the t-test: difference in ratings of movies in 1980 and in 2000 is statistically significant.*
+
+**Do a `t.test` to check if the ratings of Drama movies and Comedies could have come from the same distribution. **
+```{r fig.width=6, fig.height=3, dpi=100, fig.align='center'}
+with(imdb.genres, 
+     t.test(x = imdbRating[genre=="Drama"], y = imdbRating[genre=="Comedy"]))
+```
+*Mean rating of Drama movies is 6.633667 and mean rating of Comedies is 6.166984.*
+*The conclusion of the t-test: difference in ratings of Drama movies and Comedies is statistically significant.*
+
+### 3.2 Regression and Cross Validation
+
+**fit a natural spline to number of reviews (popularity measure) as a function of rating**
+1. Make a scatterplot of `nrOfUserReviews` as a function of `imdbRating`. 
+```{r}
+ggplot(data=imdb, mapping=aes(x=imdbRating, y=nrOfUserReviews)) + geom_point()
+```
+
+2.use ten-fold cross validation (so `K=10`) to fit a natural spline to nrOfUserReviews
+```{r}
+#  1. a plot of the cross-validation scores as a function of `df`
+# cv.score will store all of our scores. We will initialize it to zero.
+cv.scores = rep(0, times=15)
+# vary DF from 1 to 10
+for (DF in 1:15) {
+  # fit the spline fit with df=DF, using glm
+  spline.model = glm(nrOfUserReviews~ns(imdbRating, df=DF), data=imdb)
+  # run fourfold cross validation 
+  cv = cv.glm(data=imdb, glmfit=spline.model, K=10)
+  # extract the cross-validation score
+  cv.scores[DF] = cv$delta[1]
+}
+# plot the cross validation score vs DF:
+ggplot(mapping=aes(x=1:15, y=cv.scores)) + geom_point() + 
+  labs(x='df', title='Cross Validation Scores')
+
+```
+Since the cv score first reach the valley when df = 6, we will use df =6 in the below
+```{r}
+# 2. a scatterplot showing `nrOfUserReviews` as a function of `imdbRating`, along with the fitted trend line
+ggplot(data=imdb, mapping=aes(x=imdbRating, y=nrOfUserReviews)) + geom_point(size=1) + 
+  geom_smooth(method='lm', formula = y ~ ns(x, df=6))  + 
+  labs(title = 'Fitted Spline (df=6,blue)')
+```
+
+# Part4 Conclusion
+# Data Visualization
+##### The distribution of the genres in the IMDB dataset
+*'Drama' genre appears the most times, 'Gameshow', 'News' and 'Reality TV' has the lowest count.*
+*Movies under 'FilmNoir' genre have the highest average rating, movies under 'Short' genre have the highest average rating.*
+*Movies under 'Animation' genre have the highest average rating count, movies under 'Short' genre have the highest average rating count.*
+*Movies under 'SciFi' genre have the highest average review count, movies under 'Short' genre have the highest average review count.*
+*Movies under 'Biology' genre have the highest average nomination number, movies under 'Short' genre have the highest average nomination number.*
+
+##### The distribution of the genres in the Netflix dataset
+*Despite 'International' genre,  'Drama' and 'Comedy 'genre appears the most times, 'Anime', 'Cult' and 'Faith' has the lowest count.*
+
+#### The distribution of ratings for each of the genres
+*The distribution of ratings for action movies have better ratings than the overall distribution at the lower quantiles, and also better than the overall distribution at the highest quantiles*
+*The distribution of ratings for adventure movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for animation first have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for biology movies generally have better ratings than the overall distribution*
+*The distribution of ratings for comedy movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for crime movies have better ratings than the overall distribution at the lower quantiles, and also better than the overall distribution at the highest quantiles*
+*The distribution of ratings for documentary movies have worse ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for drama movies generally have better ratings than the overall distribution*
+*The distribution of ratings for family movies have better ratings than the overall distribution at the lower quantiles, and worse ratings than the overall distribution at the middle quantiles*
+*The distribution of ratings for fantasy movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for history movies have better ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for horror movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for music movies generally have better ratings than the overall distribution*
+*The distribution of ratings for musical movies generally have better ratings than the overall distribution*
+*The distribution of ratings for mystery movies generally have better ratings than the overall distribution*
+*The distribution of ratings for romance movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for scifi movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for short movies generally have worse ratings than the overall distribution*
+*The distribution of ratings for sport movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+*The distribution of ratings for thriller movies have better ratings than the overall distribution at the lower quantiles, and similar ratings as the overall distribution at the highest quantiles*
+*The distribution of ratings for war movies generally have better ratings than the overall distribution*
+*The distribution of ratings for western movies have better ratings than the overall distribution at the lower quantiles, but worse than the overall distribution at the highest quantiles*
+
+#### T test
+*- Mean rating of movies in year 1980 is 6.527381 and mean rating of movies in year 2000 is 6.101859.*
+*- The conclusion of the t-test: difference in ratings of movies in 1980 and in 2000 is statistically significant.*
+*- Mean rating of Drama movies is 6.633667 and mean rating of Comedies is 6.166984.*
+*- The conclusion of the t-test: difference in ratings of Drama movies and Comedies is statistically significant.*
