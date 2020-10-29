@@ -1,1 +1,10 @@
-# R-for-Data-Science-P
+
+# R-for-Data-Science-Project
+
+There are two datasets used in this project. The first one is called IMDB dataset and the second one is called Netflix dataset. The IMDB Movies Dataset contains information about 14,762 movies. Information about these movies was downloaded with wget for the purpose of creating a movie recommendation app. As for Netflix dataset, it consists of tv shows and movies available on Netflix as of 2019. The dataset is collected from Flixable which is a third-party Netflix search engine. In 2018, they released an interesting report which shows that the number of TV shows on Netflix has nearly tripled since 2010. The streaming service number of movies has decreased by more than 2000 titles since 2010, while its number of TV shows has nearly tripled. It will be interesting to explore what all other insights can be obtained from the same dataset. Integrating this dataset with other external datasets such as IMDB ratings, rotten tomatoes can also provide many interesting findings.
+
+In this project, at first we would import these two datasets and then we would do someything about ‘data cleaning’. We split IMDB dataset and Netflix dataset into two datasets repectively according to the column called ‘type’ whcih contain two categories, movie and tv.
+
+Our second part is about Data Visualization. We compare the distribution of released movies and tvs for each of the datasets by creating and we compare the distribution of each of the genres by using both quantile plots and Q-Q plots. To be more detailed, we figure out the distribution of the genres in the IMDB dataset, the rating distribution of each of the genres and the rating count distributionin the IMDB dataset.
+
+The third part is about data Model. We perform a t.test to check if the ratings of movies in 1980 and in 2000 could have come from the same distribution. And we also do a t.test to check if the ratings of Drama movies and Comedies could have come from the same distribution. For the second section of this part, we do regression and cross validation to fit a natural spline to number of reviews (popularity measure) as a function of rating. We also use ten-fold cross validation (so K=10) to fit a natural spline to nrOfUserReviews.
